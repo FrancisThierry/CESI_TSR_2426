@@ -1,3 +1,5 @@
 winget install --id Microsoft.Powershell --source winget
 
 Get-ChildItem -Path C:\projets\CESI_TSR_2426 -Filter *.txt | Select-Object -Property Name, Length
+
+Get-Command -Type Cmdlet | Sort-Object -Property Noun | Format-Table -GroupBy Noun
