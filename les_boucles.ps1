@@ -42,3 +42,5 @@ $hashTable["age"] = 30
 foreach ($key in $hashTable.Keys) {
     Write-Host "$key : $($hashTable[$key])"
 }
+
+

@@ -7,3 +7,5 @@ Get-Command -Type Cmdlet | Sort-Object -Property Noun | Format-Table -GroupBy No
 recherche d'une commande :
 
 Get-Command -Type Cmdlet | Where-Object {$_.Name -like "*random*"} | Select-Object -Property Name
+
+Get-Help Get-Random 
