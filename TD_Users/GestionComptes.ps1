@@ -148,13 +148,14 @@ begin {
                     try {
                         Write-Host "Création de l'utilisateur : $($user.Nom)..." -ForegroundColor Yellow
                         
-                        # Création de l'utilisateur
+                        # Création de l'utilisateur avec mot de passe aléatoire
                         $params = @{
                             Name                = $user.Nom
                             FullName            = $user.Nom
                             Description         = "Utilisateur créé via script PowerShell"
                             AccountNeverExpires = $true
                             NoPassword          = $true # Optionnel : si vous ne mettez pas de mot de passe
+                            
                         }
                         New-LocalUser @params -ErrorAction Stop
                         
