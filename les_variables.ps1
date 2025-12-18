@@ -10,13 +10,22 @@ Write-Host "Bonjour, je m'appelle $nom et j'ai $age ans."
 $path = "C:\"
 $folder = "Temp"
 $path = $path + $folder
-if (!(Test-Path $path)) {
-    Write-Host "Le dossier $path n'existe pas." -ForegroundColor Red
+
+
+$paths = @("C:\Temp", "C:\Temp\MonDossier")
+foreach ($path in $paths) {
+    if (!(Test-Path $path)) {
+        Write-Host "Le dossier $path n'existe pas." -ForegroundColor Red
+    }
+    else {
+        Write-Host "Ici se trouve le dossier : $path"
+        Get-ChildItem $path | Select-Object Name -First 5
+    }
+
 }
-else {
-    Write-Host "Ici se trouve le dossier : $path"
-    Get-ChildItem $path | Select-Object Name -First 5
-}
+
+
+
 
 $path = "C:\Temp\MonDossier"
 
