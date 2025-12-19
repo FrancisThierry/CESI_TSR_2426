@@ -6,6 +6,9 @@
 
 https://www.lemonde.fr/le-monde-et-vous/article/2025/07/14/les-flux-rss-du-monde-fr_5498778_3237.html
 
+
+### LIen vers sqlitebrowser
+https://sqlitebrowser.org/
 ---
 
 ## Partie 1 : Fonctions du Script Unique

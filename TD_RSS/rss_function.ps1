@@ -6,7 +6,7 @@ function Get-Rss
     )
     
     begin {
-        Write-Host "Début du traitement du flux RSS depuis l'URL: $url"
+        Write-Host "Début du traitement du flux RSS depuis l'URL: $url" ForegroundColor Yellow
         
     }
     
@@ -31,7 +31,7 @@ function Get-Rss
     }
     
     end {
-        Write-Host "Traitement du flux RSS terminé."
+        Write-Host "Traitement du flux RSS terminé." -ForegroundColor Green
         
     }
 }
