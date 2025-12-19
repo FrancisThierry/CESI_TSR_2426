@@ -14,21 +14,29 @@ function Get-Rss {
             $flux = Invoke-RestMethod -Uri $Url
             
             # On traite les 10 premiers articles
-            # On stocke le résultat dans une variable pour pouvoir la retourner proprement
+            # PowerShell accumule automatiquement les sorties dans une variable si on affecte le foreach
             $resultats = foreach ($article in ($flux | Select-Object -First 10)) {
                 
-                # 1. Extraction propre du texte (gestion du CDATA via InnerText)
-                $texteBrut = $article.description.InnerText
+                # 1. Extraction sécurisée du texte
+                # Certains flux RSS n'utilisent pas .InnerText, on vérifie donc le contenu
+                $texteBrut = if ($article.description.InnerText) { 
+                    $article.description.InnerText 
+                } else { 
+                    $article.description 
+                }
                 
-                # 2. Nettoyage des balises HTML résiduelles
+                # 2. Nettoyage des balises HTML
                 $textePropre = $texteBrut -replace '<[^>]+>', ''
                 
-                # 3. Calcul du nombre de mots
-                $nbMots = ($textePropre.Split(' ', [System.StringSplitOptions]::RemoveEmptyEntries)).Count
+                # 3. Calcul du nombre de mots (sécurisé contre les valeurs nulles)
+                $nbMots = 0
+                if (-not [string]::IsNullOrWhiteSpace($textePropre)) {
+                    $nbMots = ($textePropre.Split(' ', [System.StringSplitOptions]::RemoveEmptyEntries)).Count
+                }
                 
-                # 4. Création de l'objet personnalisé
+                # 4. Création et émission de l'objet personnalisé
                 [PSCustomObject]@{
-                    Titre       = $article.title
+                    Titre       = $article.title.InnerText
                     Date        = $article.pubDate
                     Description = $textePropre.Trim()
                     Mots        = $nbMots
@@ -36,7 +44,7 @@ function Get-Rss {
                 }
             }
             
-            # On retourne l'ensemble des objets vers le pipeline
+            # On retourne le tableau final
             return $resultats
         }
         catch {
@@ -45,6 +53,6 @@ function Get-Rss {
     }
     
     end {
-        Write-Host "--- Collecte terminée avec succès ---" -ForegroundColor Green
+        Write-Host "--- Collecte terminée ---" -ForegroundColor Green
     }
 }

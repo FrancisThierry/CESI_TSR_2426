@@ -1,96 +1,111 @@
-function Install-SqliteLibrary {
-    begin {
-        Write-Host "Vérification et installation de la bibliothèque SQLite si nécessaire..." -ForegroundColor Yellow
-    }
-
-    process {
-        # Vérifie si le fournisseur SQLite est disponible, sinon l'installe pour l'utilisateur actuel
-        if (-not (Get-PackageProvider -Name NuGet -ErrorAction SilentlyContinue)) {
-            Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force
-        }
-
-        if (-not (Get-Module -ListAvailable Microsoft.Data.Sqlite)) {
-            # Installation de la bibliothèque dans le scope utilisateur
-            Write-Host "Installation de la bibliothèque Microsoft.Data.Sqlite..." -ForegroundColor Green
-            Install-Package -Name Microsoft.Data.Sqlite -Source nuget.org -Scope CurrentUser -Force
-        }
-    }
-
-    end {
-        Write-Host "Vérification et installation de la bibliothèque SQLite terminées." -ForegroundColor Green
-    }
-}
-
-function Set-SqlLibrary {
-    begin {
-        Write-Host "Chargement de la bibliothèque SQLite..." -ForegroundColor Yellow
-    }
-
-    process {
-        # Import-Module Microsoft.Data.Sqlite -Force
-        # 1. On cherche où le paquet a été installé (souvent dans Program Files ou Documents)
-        $package = Get-Package -Name Microsoft.Data.Sqlite
-
-        # 2. On charge la DLL en mémoire
-        # Note : Le chemin peut varier légèrement selon la version, on utilise un joker (*)
-        Add-Type -Path "$($package.Source)\lib\netstandard2.0\Microsoft.Data.Sqlite.dll"
-    }
-
-    end {
-        Write-Host "Bibliothèque SQLite chargée." -ForegroundColor Green
-    }
-}
-
-function Install-SqliteModule{
-
+# 1. Simplification : On installe uniquement le module PSSQLite qui contient tout le nécessaire
+function Install-SqliteModule {
     process {
         if (-not (Get-Module -ListAvailable -Name PSSQLite)) {
-            Write-Host "Installation du module SQLite..." -ForegroundColor Green
+            Write-Host "Installation du module PSSQLite..." -ForegroundColor Green
+            # Utilisation de -AllowClobber pour éviter les conflits avec des restes de NuGet
             Install-Module -Name PSSQLite -Scope CurrentUser -Force -AllowClobber
         }
         else {
-            Write-Host "Le module SQLite est déjà installé." -ForegroundColor Green
+            Write-Host "Le module PSSQLite est déjà installé." -ForegroundColor Green
         }
     }
 }
 
+# 2. Correction de la récupération (Gestion des objets SQLite et PSCustomObject)
 function Get-ListRssFromDatabase {
     param (
-        [string]$db 
+        [Parameter(Mandatory = $true)]
+        [string]$database
     )
 
     begin {
         Import-Module PSSQLite
-        Write-Host "Récupération de la liste des flux RSS depuis la base de données..." -ForegroundColor Yellow
+        Write-Host "Récupération des flux depuis la base..." -ForegroundColor Yellow
     }
 
     process {
         try {
-            $resultat = Invoke-SQLiteQuery -DataSource $db -Query "SELECT * FROM FluxRSS"
-            $rssItems = $resultat.Rows
-            foreach ($item in $rssItems) {
-                Write-Host "ID: $($item.Id), Titre: $($item.Titre), Date: $($item.DatePub), Mots-clés: $($item.MotsCles), Lien: $($item.Lien)"
+            # Invoke-SQLiteQuery renvoie déjà une collection d'objets si on ne précise rien
+            $resultats = Invoke-SQLiteQuery -DataSource $database -Query "SELECT * FROM FluxRSS"
+            
+            # On transforme chaque ligne en PSCustomObject propre
+            $rssItemsObjects = foreach ($item in $resultats) {
+                [PSCustomObject]@{
+                    Titre       = $item.Titre
+                    Date        = $item.DatePub # Déjà au format string dans la DB
+                    Description = if ($item.Description) { $item.Description.Trim() } else { "" }
+                    Mots        = $item.Mots
+                    Lien        = $item.Lien
+                }
             }
+            return $rssItemsObjects
         }
         catch {
-            Write-Host "Une erreur s'est produite $_.Exception.Message." -ForegroundColor Red
-        }   
-
-    }
-    end {
-        Write-Host "Récupération terminée." -ForegroundColor Green
-        return $rssItems
+            Write-Host "Erreur : $($_.Exception.Message)" -ForegroundColor Red
+        } 
     }
 }
 
+# 3. Correction de l'insertion (Paramètres et conversion XML -> Texte)
 function Add-Feed {
     param (
-        [string]$db,
-        [string]$titre,
-        [string]$datePub,
-        [string]$motsCles,
-        [string]$lien
+        [Parameter(Mandatory = $true)]
+        [PSCustomObject]$article, 
+        [Parameter(Mandatory = $true)]
+        [string]$database
     )
-    $query = "INSERT INTO FluxRSS (Titre, DatePub, MotsCles, Lien) VALUES ('{0}', '{1}', '{2}', '{3}')" -f $titre, $datePub, $motsCles, $lien
-    Invoke-SQLiteQuery -DataSource $db -Query $query
-    Write-Host "Flux RSS ajouté à la base de données." -ForegroundColor Green}
+    
+    # $query = "INSERT INTO FluxRSS (Titre, DatePub, Description, Mots, Lien) 
+    #           VALUES (@titre, @date, @desc, @mots, @lien)
+    #           WHERE NOT EXISTS (SELECT 1 FROM FluxRSS WHERE Titre = @titre)"
+
+    $query = "INSERT INTO FluxRSS (Titre, DatePub, Description, Mots, Lien) 
+              VALUES (@titre, @date, @desc, @mots, @lien)
+              "
+    
+    # Correction majeure : conversion des éléments XML en String et paramètre -QueryParameters
+    $params = @{
+        titre = $article.Titre.ToString()
+        # On sécurise la date pour éviter l'erreur de pipeline Get-Date
+        date  = (Get-Date $article.Date.ToString()).ToString("yyyy-MM-dd HH:mm:ss")
+        desc  = if ($article.Description) { $article.Description.ToString() } else { "" }
+        mots  = $article.Mots
+        lien  = $article.Lien.ToString()
+    }
+    
+    # Note: Le nom du paramètre est souvent -QueryParameters dans PSSQLite
+    Invoke-SQLiteQuery -DataSource $database -Query $query -SqlParameters $params
+    
+    Write-Host "Article ajouté : $($article.Titre)" -ForegroundColor Gray
+}
+
+# 4. Correction de la création de table (Initialisation de $query)
+function Set-CreateTable {
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$database
+    )
+
+    process {
+        Import-Module PSSQLite
+        Write-Host "Vérification de la table FluxRSS..." -ForegroundColor Yellow
+        
+        # On définit la variable proprement (ne pas utiliser += sur une variable vide)
+        $query = @"
+CREATE TABLE IF NOT EXISTS FluxRSS (
+    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+    Titre TEXT NOT NULL,
+    DatePub TEXT NOT NULL,
+    Description TEXT,
+    Mots INTEGER NOT NULL,
+    Lien TEXT NOT NULL
+);
+"@
+        Invoke-SQLiteQuery -DataSource $database -Query $query
+    }
+
+    end {
+        Write-Host "Base de données prête." -ForegroundColor Green
+    }
+}
