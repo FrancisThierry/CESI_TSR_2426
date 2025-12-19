@@ -15,12 +15,14 @@ function Get-Rss
         
         try {
             # Pour voir les articles (souvent situés dans la propriété 'item')
-            $flux | Select-Object title, pubDate, link | Out-GridView
+            # $flux | Select-Object title, pubDate, link | Out-GridView
+            $flux | Select-Object title, pubDate, link, description -First 10
         
         
             foreach ($article in $flux) {
                 Write-Host "Titre: $($article.title)"
                 Write-Host "Date de publication: $($article.pubDate)"
+                Write-Host "DESCRIPTION : $($article.description.InnerText)"
                 Write-Host "Lien: $($article.link)"
                 Write-Host "-----------------------------------"
             }   
