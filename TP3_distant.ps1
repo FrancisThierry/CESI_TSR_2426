@@ -11,3 +11,23 @@ Get-Process | Sort-Object -Property WS -Descending | Select-Object -First 5 -Pro
 # 2. Top 5 par utilisation Processeur (CPU)
 Write-Host "`n--- TOP 5 CPU ---" -ForegroundColor Yellow
 Get-Process | Sort-Object -Property CPU -Descending | Select-Object -First 5 -Property Name, Id, CPU
+# 3. Top 5 par utilisation Processeur (CPU) pourcentage
+Write-Host "`n--- TOP 5 CPU (%) ---" -ForegroundColor Yellow
+Get-Process | ForEach-Object {
+    $cpuPercent = if ($_.CPU -and $($_.StartTime)) {
+        $uptime = (Get-Date) - $_.StartTime
+        if ($uptime.TotalSeconds -gt 0) {
+            [math]::Round(($_.CPU / $uptime.TotalSeconds) * 100, 2)
+        } else {
+            0
+        }
+    } else {
+        0
+    }
+    [PSCustomObject]@{
+        Name = $_.Name
+        Id = $_.Id
+        CPUPercent = $cpuPercent
+    }
+} | Sort-Object -Property CPUPercent -Descending | Select-Object -First 5 -Property Name, Id, CPUPercent
+
